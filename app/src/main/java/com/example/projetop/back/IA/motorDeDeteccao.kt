@@ -109,11 +109,21 @@ class motorDeDeteccao(
         val padX = (target - newW) / 2f
         val padY = (target - newH) / 2f
 
-        val resized = Bitmap.createScaledBitmap(src, newW, newH, true)
+        var atual = src
+        while (atual.width / 2 >= newW && atual.height / 2 >= newH) {
+            val reduzido = Bitmap.createScaledBitmap(atual, atual.width / 2, atual.height / 2, true)
+            if (atual != src) atual.recycle()
+            atual = reduzido
+        }
+
+        val resized = Bitmap.createScaledBitmap(atual, newW, newH, true)
+        if (atual != src) atual.recycle()
+
         val output = Bitmap.createBitmap(target, target, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
         canvas.drawColor(Color.rgb(114, 114, 114))
         canvas.drawBitmap(resized, padX, padY, null)
+        resized.recycle()
 
         return LetterboxResult(output, scale, padX, padY)
     }
@@ -150,6 +160,7 @@ class motorDeDeteccao(
 
         return if (union <= 0f) 0f else inter / union
     }
+
 
     fun fechar() {
         session.close()

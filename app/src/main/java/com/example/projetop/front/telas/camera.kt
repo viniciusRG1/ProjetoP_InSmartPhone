@@ -44,6 +44,15 @@ import com.example.projetop.back.IA.motorDeDeteccao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.util.Size
+import android.view.MotionEvent
+import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
+import java.util.concurrent.TimeUnit
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 @Composable
 fun camera(onVoltar: () -> Unit) {
@@ -51,10 +60,17 @@ fun camera(onVoltar: () -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val detector = remember { motorDeDeteccao(context) }
+
+    val resolutionSelector = remember{
+        ResolutionSelector.Builder().setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+            .setResolutionStrategy(ResolutionStrategy(
+                Size(1280,960),
+                ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+            )).build()
+    }
     val imageCapture = remember {
-        ImageCapture.Builder()
-            .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-            .build()
+        ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .setResolutionSelector(resolutionSelector).build()
     }
 
     var fotoMarcada by remember { mutableStateOf<Bitmap?>(null) }
@@ -233,12 +249,13 @@ fun camera(onVoltar: () -> Unit) {
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
+                            .heightIn(max = 180.dp)
                             .padding(16.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = Color.White.copy(alpha = 0.9f)
                         )
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                        Column(modifier = Modifier.padding(12.dp).verticalScroll(rememberScrollState())) {
                             Text(
                                 text = "Identificados:",
                                 fontWeight = FontWeight.Bold,
@@ -265,19 +282,30 @@ fun camera(onVoltar: () -> Unit) {
 
                         cameraProviderFuture.addListener({
                             val cameraProvider = cameraProviderFuture.get()
-                            val preview = Preview.Builder().build().also {
-                                it.surfaceProvider = previewView.surfaceProvider
-                            }
+                            val preview = Preview.Builder()
+                                .setResolutionSelector(resolutionSelector)
+                                .build()
+                                .also {
+                                    it.surfaceProvider = previewView.surfaceProvider
+                                }
                             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
                             try {
                                 cameraProvider.unbindAll()
-                                cameraProvider.bindToLifecycle(
+                                val camera = cameraProvider.bindToLifecycle(
                                     lifecycleOwner,
                                     cameraSelector,
-                                    preview,
-                                    imageCapture
+                                    preview, imageCapture
                                 )
+                                previewView.setOnTouchListener { view, event ->
+                                    if(event.action == MotionEvent.ACTION_UP){
+                                        val point = previewView.meteringPointFactory.createPoint(event.x, event.y)
+                                        val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
+                                            .setAutoCancelDuration(3, TimeUnit.SECONDS).build()
+                                        camera.cameraControl.startFocusAndMetering(action)
+                                        view.performClick()
+                                    }
+                                    true
+                                }
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             }
