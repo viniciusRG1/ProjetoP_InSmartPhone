@@ -110,8 +110,10 @@ class motorDeDeteccao(
         val padY = (target - newH) / 2f
 
         var atual = src
-        while (atual.width / 2 >= newW && atual.height / 2 >= newH) {
-            val reduzido = Bitmap.createScaledBitmap(atual, atual.width / 2, atual.height / 2, true)
+        while (maxOf(atual.width, atual.height) > 1280 && (maxOf(atual.width, atual.height) * 3) / 4 > target) {
+            val proxW = (atual.width * 3) / 4
+            val proxH = (atual.height * 3) / 4
+            val reduzido = Bitmap.createScaledBitmap(atual, proxW, proxH, true)
             if (atual != src) atual.recycle()
             atual = reduzido
         }
